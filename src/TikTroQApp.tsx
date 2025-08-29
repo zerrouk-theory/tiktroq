@@ -2,14 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Heart, MessageCircle, Share2, MapPin, Clock, Star, Search, Plus, Home, Compass, User,
   Send, ArrowLeft, Camera, MoreHorizontal, Bookmark, Filter, Video, RefreshCw,
-  ShieldCheck, LogOut, Settings, Flag, Check, Bell, Crown, Download, Shield
+  ShieldCheck, LogOut, Settings, Check, Bell, Crown, Download, Shield
 } from 'lucide-react'
 
 /* ======================= Types & Utils ======================= */
-type UserT = { id: string; firstName: string; lastName: string; avatar: string; city: string; trust: number; trades: number; premium?: boolean; radiusKm?: number; consent?: any }
+type UserT = {
+  id: string; firstName: string; lastName: string; avatar: string; city: string;
+  trust: number; trades: number; premium?: boolean; radiusKm?: number; consent?: any
+}
 type PostT = {
-  id: string; userId: string; title: string; description: string; category: string; estimatedValue: number; condition: string; type: 'troc' | 'service';
-  city: string; distanceKm: number; mediaType?: 'video'|'image'; mediaPoster: string; mediaUrl?: string; duration: string; likes: number; comments: number; shares: number; views: number; timeAgo: string;
+  id: string; userId: string; title: string; description: string; category: string;
+  estimatedValue: number; condition: string; type: 'troc' | 'service' | 'vente';
+  city: string; distanceKm: number; mediaType?: 'video'|'image'; mediaPoster: string; mediaUrl?: string;
+  duration: string; likes: number; comments: number; shares: number; views: number; timeAgo: string;
   hashtags: string[]; liked: boolean; saved: boolean; status: 'approved'|'pending'|'rejected'
 }
 type MessageT = { id: string; from: string; text: string; at: string }
@@ -28,8 +33,22 @@ const seedUsers: UserT[] = [
 ]
 
 const seedPosts: PostT[] = [
-  { id:'p1', userId:'u1', title:'iPhone 13 Pro contre console PS5', description:'iPhone 13 Pro 256 Go, excellent état, échange contre PS5 et 2 jeux.', category:'Électronique', estimatedValue:650, condition:'Excellent', type:'troc', city:'Paris', distanceKm:2.3, mediaType:'image', mediaPoster:'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&h=1000&fit=crop', duration:'0:45', likes:127, comments:34, shares:12, views:1250, timeAgo:'2h', hashtags:['#iPhone13','#PS5','#ÉchangeÉlectronique'], liked:false, saved:false, status:'approved' },
-  { id:'p2', userId:'u2', title:"Cours de guitare contre cours d'anglais", description:"Prof de guitare, 1 h par semaine contre cours d'anglais niveau B2. Échange de services.", category:'Services', estimatedValue:40, condition:'Service', type:'service', city:'Montreuil', distanceKm:1.8, mediaType:'image', mediaPoster:'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1000&fit=crop', duration:'1:12', likes:89, comments:19, shares:8, views:890, timeAgo:'5h', hashtags:['#CoursGuitare','#Anglais','#Échange'], liked:true, saved:true, status:'approved' },
+  { id:'p1', userId:'u1', title:'iPhone 13 Pro contre console PS5', description:'iPhone 13 Pro 256 Go, excellent état, échange contre PS5 et 2 jeux.',
+    category:'Électronique', estimatedValue:650, condition:'Excellent', type:'troc', city:'Paris', distanceKm:2.3,
+    mediaType:'image', mediaPoster:'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800&h=1000&fit=crop',
+    duration:'0:45', likes:127, comments:34, shares:12, views:1250, timeAgo:'2h',
+    hashtags:['#iPhone13','#PS5','#ÉchangeÉlectronique'], liked:false, saved:false, status:'approved' },
+  { id:'p2', userId:'u2', title:"Cours de guitare contre cours d'anglais", description:"Prof de guitare, 1 h par semaine contre cours d'anglais niveau B2. Échange de services.",
+    category:'Services', estimatedValue:40, condition:'Service', type:'service', city:'Montreuil', distanceKm:1.8,
+    mediaType:'image', mediaPoster:'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&h=1000&fit=crop',
+    duration:'1:12', likes:89, comments:19, shares:8, views:890, timeAgo:'5h',
+    hashtags:['#CoursGuitare','#Anglais','#Échange'], liked:true, saved:true, status:'approved' },
+  // un exemple vente pour le mode "Occasion"
+  { id:'p3', userId:'u3', title:'Vends VTT semi-rigide', description:'Taille M, très bon état, peu servi. Remise en main propre.',
+    category:'Sport', estimatedValue:220, condition:'Très bon', type:'vente', city:'Courbevoie', distanceKm:3.2,
+    mediaType:'image', mediaPoster:'https://images.unsplash.com/photo-1518655048521-f130df041f66?w=800&h=1000&fit=crop',
+    duration:'0:12', likes:12, comments:3, shares:1, views:210, timeAgo:'1j',
+    hashtags:['#VTT','#Vente','#Occasion'], liked:false, saved:false, status:'approved' },
 ]
 
 const seedConversations: ConversationT[] = [
@@ -96,7 +115,12 @@ function AdPlaceholder() {
   )
 }
 
-function Header({ cityLabel, onOpenSearch, onOpenSettings, onStartRoulette }: { cityLabel:string, onOpenSearch:()=>void, onOpenSettings:()=>void, onStartRoulette:()=>void }) {
+function Header({
+  cityLabel, onOpenSearch, onOpenSettings, onStartRoulette, appMode, onToggleMode
+}: {
+  cityLabel:string, onOpenSearch:()=>void, onOpenSettings:()=>void, onStartRoulette:()=>void,
+  appMode:'troc'|'occasion', onToggleMode:()=>void
+}) {
   return (
     <div className="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/70 to-transparent p-4">
       <div className="flex items-center justify-between">
@@ -106,8 +130,15 @@ function Header({ cityLabel, onOpenSearch, onOpenSettings, onStartRoulette }: { 
         </div>
         <div className="text-2xl font-bold text-green-400 select-none">TikTroQ</div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={onToggleMode}
+            className="px-2 py-1 rounded-full text-xs border border-green-500/60 text-green-300"
+            title="Changer de mode"
+          >
+            {appMode === 'troc' ? 'Mode TROQUE' : 'Mode OCCASION'}
+          </button>
           <button onClick={onOpenSearch} title="Recherche"><Search size={22} /></button>
-          <button onClick={onStartRoulette} title="Troc Roulette" className="animate-pulse">🎰</button>
+          <button onClick={onStartRoulette} title="Troc Roulette" className="animate-pulse" disabled={appMode!=='troc'}>🎰</button>
           <button onClick={onOpenSettings} title="Réglages"><Settings size={22} /></button>
         </div>
       </div>
@@ -187,6 +218,12 @@ export default function TikTroQApp() {
   // Vue courante
   const [view, setView] = useState<string>('landing')
 
+  // Mode global: TROQUE vs ACHAT-VENTE d'occasion
+  const [appMode, setAppMode] = useState<'troc'|'occasion'>(() => {
+    try { return JSON.parse(localStorage.getItem('tiktroq.appMode') || '"troc"') } catch { return 'troc' }
+  })
+  useEffect(() => { localStorage.setItem('tiktroq.appMode', JSON.stringify(appMode)) }, [appMode])
+
   // Données & session
   const [users, setUsers] = useState<UserT[]>(() => JSON.parse(localStorage.getItem('tiktroq.users') || 'null') || seedUsers)
   const [posts, setPosts] = useState<PostT[]>(() => JSON.parse(localStorage.getItem('tiktroq.posts') || 'null') || seedPosts)
@@ -207,7 +244,7 @@ export default function TikTroQApp() {
   const [locationMode, setLocationMode] = useState<'ville'|'rayon'>('ville')
 
   // Création d’annonce
-  const [createForm, setCreateForm] = useState({ type: 'troc' as 'troc'|'service', title: '', description: '', category: 'Objets', estimatedValue: 50, file: null as File | null, poster: '' })
+  const [createForm, setCreateForm] = useState({ type: 'troc' as 'troc'|'service'|'vente', title: '', description: '', category: 'Objets', estimatedValue: 50, file: null as File | null, poster: '' })
 
   // TroQ Roulette
   const [showRoulette, setShowRoulette] = useState(false)
@@ -249,10 +286,20 @@ export default function TikTroQApp() {
     if (activeCategory !== 'Tous') list = list.filter((p) => p.category === activeCategory)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
-      list = list.filter((p) => p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.hashtags.some((h) => h.toLowerCase().includes(q)))
+      list = list.filter((p) =>
+        p.title.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.hashtags.some((h) => h.toLowerCase().includes(q))
+      )
+    }
+    // filtre selon le mode
+    if (appMode === 'occasion') {
+      list = list.filter(p => p.type === 'vente')
+    } else {
+      list = list.filter(p => p.type !== 'vente')
     }
     return list
-  }, [posts, activeCategory, searchQuery])
+  }, [posts, activeCategory, searchQuery, appMode])
 
   const currentPost = filteredPosts[currentPostIndex] || filteredPosts[0] || null
 
@@ -311,11 +358,22 @@ export default function TikTroQApp() {
     const status = check.ok ? 'approved' : 'pending'
     const id = `p${Date.now()}`
     const newPost: PostT = {
-      id, userId: meUser?.id || 'u1', title: createForm.title || 'Nouvelle annonce', description: createForm.description || 'Description à venir',
-      category: createForm.category || 'Objets', estimatedValue: Number(createForm.estimatedValue) || 0, condition: createForm.type === 'service' ? 'Service' : 'Bon', type: createForm.type,
-      city: meUser?.city || city, distanceKm: Math.max(0.3, Math.round(Math.random() * radiusKm * 10) / 10),
-      mediaType: createForm.file ? 'video' : 'image', mediaPoster: createForm.poster || 'https://images.unsplash.com/photo-1596464716121-acb9fcc7d6a8?w=800&h=1000&fit=crop',
-      mediaUrl: '', duration: '0:23', likes: 0, comments: 0, shares: 0, views: 0, timeAgo: 'maintenant', hashtags: ['#Troc', '#ÉconomieCirculaire'], liked: false, saved: false, status,
+      id, userId: meUser?.id || 'u1',
+      title: createForm.title || 'Nouvelle annonce',
+      description: createForm.description || 'Description à venir',
+      category: createForm.category || 'Objets',
+      estimatedValue: Number(createForm.estimatedValue) || 0,
+      condition: createForm.type === 'service' ? 'Service' : 'Bon',
+      type: createForm.type,
+      city: meUser?.city || city,
+      distanceKm: Math.max(0.3, Math.round(Math.random() * radiusKm * 10) / 10),
+      mediaType: createForm.file ? 'video' : 'image',
+      mediaPoster: createForm.poster || 'https://images.unsplash.com/photo-1596464716121-acb9fcc7d6a8?w=800&h=1000&fit=crop',
+      mediaUrl: '',
+      duration: '0:23',
+      likes: 0, comments: 0, shares: 0, views: 0, timeAgo: 'maintenant',
+      hashtags: ['#Troc', '#ÉconomieCirculaire'],
+      liked: false, saved: false, status,
     }
     setPosts((prev) => [newPost, ...prev])
     setView('feed')
@@ -326,7 +384,8 @@ export default function TikTroQApp() {
     const availablePosts = posts.filter(p =>
       p.userId !== (me?.id || 'me') &&
       p.distanceKm <= radiusKm &&
-      p.status === 'approved'
+      p.status === 'approved' &&
+      p.type !== 'vente' // pas de ventes dans la roulette
     )
     if (!availablePosts.length) { alert('Aucun troc disponible dans ta zone ! 😢'); return }
 
@@ -389,6 +448,23 @@ export default function TikTroQApp() {
         <div className="w-full max-w-md text-center">
           <div className="text-5xl font-extrabold text-green-400 mb-2 select-none">TikTroQ</div>
           <p className="text-gray-300 mb-6">{SLOGAN}</p>
+
+          {/* Choix du mode */}
+          <div className="grid grid-cols-1 gap-3 mb-3">
+            <button
+              className={`w-full py-3 rounded-xl font-semibold ${appMode==='troc' ? 'bg-green-500 text-black' : 'bg-gray-800 text-white'}`}
+              onClick={() => setAppMode('troc')}
+            >
+              Je veux TROQUER
+            </button>
+            <button
+              className={`w-full py-3 rounded-xl font-semibold ${appMode==='occasion' ? 'bg-yellow-400 text-black' : 'bg-gray-800 text-white'}`}
+              onClick={() => setAppMode('occasion')}
+            >
+              Achat-Vente d’occasion
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 mb-6">
             <button className="bg-green-500 text-black font-semibold py-3 rounded-xl" onClick={() => setView('auth')}>
               Créer un compte
@@ -575,7 +651,14 @@ export default function TikTroQApp() {
     const u = p ? userMap[p.userId] : null
     return (
       <div className="max-w-md mx-auto bg-black text-white relative overflow-hidden h-screen" onWheel={onWheel} ref={feedRef}>
-        <Header cityLabel={locationMode === 'ville' ? city : `${city}, ${radiusKm} km`} onOpenSearch={() => setView('search')} onOpenSettings={() => setView('settings')} onStartRoulette={startTroqRoulette} />
+        <Header
+          cityLabel={locationMode === 'ville' ? city : `${city}, ${radiusKm} km`}
+          onOpenSearch={() => setView('search')}
+          onOpenSettings={() => setView('settings')}
+          onStartRoulette={startTroqRoulette}
+          appMode={appMode}
+          onToggleMode={() => setAppMode(appMode === 'troc' ? 'occasion' : 'troc')}
+        />
         <div className="relative h-full bg-gray-900 flex items-center justify-center">
           {p ? (
             p.mediaUrl ? (
@@ -611,7 +694,9 @@ export default function TikTroQApp() {
                 <div className="flex items-center space-x-4 text-xs text-gray-400">
                   <span className="flex items-center space-x-1"><MapPin size={12} /><span>{p.distanceKm} km</span></span>
                   <span className="flex items-center space-x-1"><Clock size={12} /><span>{p.timeAgo}</span></span>
-                  <span className="bg-green-400 text-black px-2 py-1 rounded text-xs font-bold">{formatEuros(p.estimatedValue)}</span>
+                  <span className={`px-2 py-1 rounded text-xs font-bold ${p.type==='vente' ? 'bg-yellow-400 text-black' : 'bg-green-400 text-black'}`}>
+                    {formatEuros(p.estimatedValue)}
+                  </span>
                 </div>
               </div>
 
@@ -639,11 +724,29 @@ export default function TikTroQApp() {
                   </button>
                   <span className="text-xs mt-1">{p.shares}</span>
                 </div>
+
+                {/* CTA adaptatif */}
                 <div className="flex flex-col items-center">
-                  <button onClick={() => { setShowChatWith(p.userId); setView('chat'); }} className="p-3 rounded-full bg-green-500">
-                    <RefreshCw size={24} className="text-black" />
-                  </button>
-                  <span className="text-xs mt-1 text-green-400">Troquer</span>
+                  {p.type === 'vente' ? (
+                    <button
+                      onClick={() => { setShowChatWith(p.userId); setView('chat'); }}
+                      className="p-3 rounded-full bg-yellow-400"
+                      title="Contacter le vendeur"
+                    >
+                      <Send size={24} className="text-black" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setShowChatWith(p.userId); setView('chat'); }}
+                      className="p-3 rounded-full bg-green-500"
+                      title="Proposer un troc"
+                    >
+                      <RefreshCw size={24} className="text-black" />
+                    </button>
+                  )}
+                  <span className={`text-xs mt-1 ${p.type==='vente' ? 'text-yellow-300' : 'text-green-400'}`}>
+                    {p.type==='vente' ? 'Contacter' : 'Troquer'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -719,7 +822,9 @@ export default function TikTroQApp() {
                         <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
                           <button>Répondre</button>
                           <button className="text-red-400">Signaler</button>
-                          <button className="text-green-400 font-semibold" onClick={() => { setShowComments(false); setShowChatWith(currentPost?.userId || null); setView('chat'); }}>Proposer un troc</button>
+                          <button className="text-green-400 font-semibold" onClick={() => { setShowComments(false); setShowChatWith(currentPost?.userId || null); setView('chat'); }}>
+                            {p.type==='vente' ? 'Contacter' : 'Proposer un troc'}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -761,11 +866,14 @@ export default function TikTroQApp() {
         <div className="grid grid-cols-2 gap-1 p-1">
           {filteredPosts.map((post) => (
             <div key={post.id} className="relative aspect-[3/4] bg-gray-800 rounded-lg overflow-hidden cursor-pointer" onClick={() => { setView('feed'); }}>
+              {post.type==='vente' && (
+                <div className="absolute top-2 left-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded">VENTE</div>
+              )}
               <img src={post.mediaPoster} alt={post.title} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
                 <p className="text-xs font-medium truncate">{post.title}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-green-400">{formatEuros(post.estimatedValue)}</span>
+                  <span className={`text-xs ${post.type==='vente' ? 'text-yellow-300' : 'text-green-400'}`}>{formatEuros(post.estimatedValue)}</span>
                   <div className="flex items-center space-x-1 text-xs"><Heart size={10} /><span>{post.likes}</span></div>
                 </div>
               </div>
@@ -790,8 +898,16 @@ export default function TikTroQApp() {
           <div>
             <h3 className="text-sm font-semibold mb-3">Type d'annonce</h3>
             <div className="grid grid-cols-2 gap-3">
-              <button className={`py-3 rounded-lg text-sm font-medium ${createForm.type === 'troc' ? 'bg-green-500 text-black' : 'bg-gray-800'}`} onClick={() => setCreateForm({ ...createForm, type: 'troc' })}>Je veux troquer</button>
-              <button className={`py-3 rounded-lg text-sm font-medium ${createForm.type === 'service' ? 'bg-green-500 text-black' : 'bg-gray-800'}`} onClick={() => setCreateForm({ ...createForm, type: 'service' })}>Je propose un service</button>
+              <button className={`py-3 rounded-lg text-sm font-medium ${createForm.type === 'troc' ? 'bg-green-500 text-black' : 'bg-gray-800'}`}
+                      onClick={() => setCreateForm({ ...createForm, type: 'troc' })}>Troc</button>
+
+              {appMode === 'occasion' ? (
+                <button className={`py-3 rounded-lg text-sm font-medium ${createForm.type === 'vente' ? 'bg-yellow-400 text-black' : 'bg-gray-800'}`}
+                        onClick={() => setCreateForm({ ...createForm, type: 'vente' })}>Vente</button>
+              ) : (
+                <button className={`py-3 rounded-lg text-sm font-medium ${createForm.type === 'service' ? 'bg-green-500 text-black' : 'bg-gray-800'}`}
+                        onClick={() => setCreateForm({ ...createForm, type: 'service' })}>Service</button>
+              )}
             </div>
           </div>
           <div>
@@ -802,7 +918,10 @@ export default function TikTroQApp() {
                 <div className="bg-gray-800 p-4 rounded-full"><Camera size={24} /></div>
               </div>
               <p className="text-sm text-gray-400">Filme ou photographie ton objet</p>
-              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; const url = URL.createObjectURL(file); setCreateForm({ ...createForm, file, poster: url }); }} />
+              <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0]; if (!file) return
+                const url = URL.createObjectURL(file); setCreateForm({ ...createForm, file, poster: url })
+              }} />
             </label>
             {createForm.poster && (<div className="mt-3"><img src={createForm.poster} alt="aperçu" className="w-full h-64 object-cover rounded-lg" /></div>)}
           </div>
@@ -813,10 +932,18 @@ export default function TikTroQApp() {
               {CATEGORIES.filter((c) => c !== 'Tous').map((c) => (<option key={c}>{c}</option>))}
             </select>
             <div className="bg-gray-800 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold">Valeur estimée</span><span className="text-green-400 font-bold">{formatEuros(createForm.estimatedValue)}</span></div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold">Valeur estimée</span>
+                <span className={`font-bold ${createForm.type==='vente' ? 'text-yellow-400' : 'text-green-400'}`}>{formatEuros(createForm.estimatedValue)}</span>
+              </div>
               <input type="range" min={0} max={2000} value={createForm.estimatedValue} onChange={(e) => setCreateForm({ ...createForm, estimatedValue: Number(e.target.value) })} className="w-full" />
             </div>
-            {(() => { const check = moderateText(`${createForm.title} ${createForm.description}`); return check.ok ? (<div className="text-xs text-green-400 flex items-center space-x-2"><Check size={14} /><span>Contenu conforme</span></div>) : (<div className="text-xs text-yellow-400 flex items-center space-x-2"><Shield size={14} /><span>{check.reason}. Votre annonce sera vérifiée avant publication.</span></div>); })()}
+            {(() => {
+              const check = moderateText(`${createForm.title} ${createForm.description}`)
+              return check.ok
+                ? (<div className="text-xs text-green-400 flex items-center space-x-2"><Check size={14} /><span>Contenu conforme</span></div>)
+                : (<div className="text-xs text-yellow-400 flex items-center space-x-2"><Shield size={14} /><span>{check.reason}. Votre annonce sera vérifiée avant publication.</span></div>)
+            })()}
           </div>
         </div>
         <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
