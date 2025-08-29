@@ -5,6 +5,7 @@ import {
   ShieldCheck, LogOut, Settings, Flag, Check, Bell, Crown, Download, Shield
 } from 'lucide-react'
 
+/* ======================= Types & Utils ======================= */
 type UserT = { id: string; firstName: string; lastName: string; avatar: string; city: string; trust: number; trades: number; premium?: boolean; radiusKm?: number; consent?: any }
 type PostT = {
   id: string; userId: string; title: string; description: string; category: string; estimatedValue: number; condition: string; type: 'troc' | 'service';
@@ -47,6 +48,7 @@ function moderateText(txt?: string) {
   return { ok:true, reason:'' }
 }
 
+/* ======================= UI bits ======================= */
 function StarRating({ value }: { value:number }) {
   const full = Math.floor(value)
   const half = value - full >= 0.5
@@ -134,33 +136,105 @@ function BottomNav({ current, setCurrent, onCreate }: { current:string, setCurre
   )
 }
 
+/* ======================= RGPD Banner Component ======================= */
+function GdprBanner({
+  show, onAccept, consents, setConsents,
+}: {
+  show: boolean,
+  onAccept: () => void,
+  consents: { analytics: boolean; marketing: boolean; location: boolean; photos: boolean; messages: boolean },
+  setConsents: (v: any) => void
+}) {
+  if (!show) return null
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[100] p-4">
+      <div className="mx-auto max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-4 shadow-lg">
+        <div className="text-sm font-semibold mb-1">Confidentialité, cookies et consentements</div>
+        <div className="text-xs text-gray-300 mb-3">
+          Nous utilisons des stockages locaux pour améliorer l’expérience. Vous pouvez personnaliser vos choix.
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+          <button
+            className={`rounded-lg px-3 py-2 border ${consents.analytics ? 'border-green-500 text-green-400' : 'border-gray-700 text-gray-300'}`}
+            onClick={() => setConsents({ ...consents, analytics: !consents.analytics })}
+          >Mesure d’audience</button>
+          <button
+            className={`rounded-lg px-3 py-2 border ${consents.marketing ? 'border-green-500 text-green-400' : 'border-gray-700 text-gray-300'}`}
+            onClick={() => setConsents({ ...consents, marketing: !consents.marketing })}
+          >Marketing</button>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <button className="text-xs text-gray-400 underline" onClick={onAccept}>Tout refuser</button>
+          <div className="space-x-2">
+            <button className="text-xs bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg"
+                    onClick={() => setConsents({ ...consents, analytics: false, marketing: false })}>
+              Paramétrer par défaut
+            </button>
+            <button className="text-xs bg-green-500 text-black font-semibold px-3 py-2 rounded-lg" onClick={onAccept}>
+              Tout accepter
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ======================= App ======================= */
 export default function TikTroQApp() {
-  const [me, setMe] = useState<UserT | null>(null)
+  // Vue courante
   const [view, setView] = useState<string>('landing')
+
+  // Données & session
+  const [users, setUsers] = useState<UserT[]>(() => JSON.parse(localStorage.getItem('tiktroq.users') || 'null') || seedUsers)
+  const [posts, setPosts] = useState<PostT[]>(() => JSON.parse(localStorage.getItem('tiktroq.posts') || 'null') || seedPosts)
+  const [conversations, setConversations] = useState<ConversationT[]>(() => JSON.parse(localStorage.getItem('tiktroq.conversations') || 'null') || seedConversations)
+  const [me, setMe] = useState<UserT | null>(() => JSON.parse(localStorage.getItem('tiktroq.me') || 'null'))
+
+  // Filtres & UI
   const [currentPostIndex, setCurrentPostIndex] = useState(0)
   const [showComments, setShowComments] = useState(false)
   const [showChatWith, setShowChatWith] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('Tous')
 
-  const [users, setUsers] = useState<UserT[]>(() => JSON.parse(localStorage.getItem('tiktroq.users') || 'null') || seedUsers)
-  const [posts, setPosts] = useState<PostT[]>(() => JSON.parse(localStorage.getItem('tiktroq.posts') || 'null') || seedPosts)
-  const [conversations, setConversations] = useState<ConversationT[]>(() => JSON.parse(localStorage.getItem('tiktroq.conversations') || 'null') || seedConversations)
-
+  // Préférences
   const [consents, setConsents] = useState({ analytics: true, marketing: false, location: true, photos: true, messages: true })
   const [city, setCity] = useState('Paris 11e')
   const [radiusKm, setRadiusKm] = useState(5)
   const [locationMode, setLocationMode] = useState<'ville'|'rayon'>('ville')
 
+  // Création d’annonce
   const [createForm, setCreateForm] = useState({ type: 'troc' as 'troc'|'service', title: '', description: '', category: 'Objets', estimatedValue: 50, file: null as File | null, poster: '' })
 
-  // TroQ Roulette state
+  // TroQ Roulette
   const [showRoulette, setShowRoulette] = useState(false)
   const [roulettePost, setRoulettePost] = useState<PostT | null>(null)
   const [isSpinning, setIsSpinning] = useState(false)
   const [rouletteTimer, setRouletteTimer] = useState<number | null>(null)
 
-  // persist
+  // RGPD persistant
+  const [gdprAccepted, setGdprAccepted] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem('tiktroq.gdprAccepted') || 'false') } catch { return false }
+  })
+  useEffect(() => { localStorage.setItem('tiktroq.gdprAccepted', JSON.stringify(gdprAccepted)) }, [gdprAccepted])
+
+  // KYC flag (demo)
+  const [kycStatus, setKycStatus] = useState<'none'|'pending'|'verified'>(() => {
+    try { return JSON.parse(localStorage.getItem('tiktroq.kycStatus') || '"none"') } catch { return 'none' }
+  })
+  useEffect(() => { localStorage.setItem('tiktroq.kycStatus', JSON.stringify(kycStatus)) }, [kycStatus])
+  const markKycVerified = () => setKycStatus('verified')
+
+  // Formulaire d’inscription (sans upload ID)
+  const [pendingAuth, setPendingAuth] = useState({
+    firstName: '', lastName: '', email: '', password: '',
+    city: 'Paris', radiusKm: 5, acceptTerms: false,
+  })
+
+  // Persistance locale
   useEffect(() => localStorage.setItem('tiktroq.users', JSON.stringify(users)), [users])
   useEffect(() => localStorage.setItem('tiktroq.posts', JSON.stringify(posts)), [posts])
   useEffect(() => localStorage.setItem('tiktroq.conversations', JSON.stringify(conversations)), [conversations])
@@ -189,6 +263,7 @@ export default function TikTroQApp() {
     if (e.deltaY < -40) setCurrentPostIndex((i) => clamp(i - 1, 0, filteredPosts.length - 1))
   }
 
+  /* ========== Auth handlers ========== */
   const handleLogin = () => {
     const id = 'me'
     const u = users.find((x) => x.id === id) || { id, firstName: 'Vous', lastName: '', avatar: '🧑', city, trust: 4.5, trades: 0 }
@@ -197,6 +272,40 @@ export default function TikTroQApp() {
     setView('feed')
   }
 
+  const handleSignup = () => {
+    if (!pendingAuth.firstName.trim()) return alert('Prénom requis')
+    if (!pendingAuth.lastName.trim()) return alert('Nom requis')
+    if (!/\S+@\S+\.\S+/.test(pendingAuth.email)) return alert('Email invalide')
+    if ((pendingAuth.password || '').length < 6) return alert('Mot de passe minimum 6 caractères')
+    if (!pendingAuth.acceptTerms) return alert('Merci d’accepter le règlement')
+
+    const id = 'me'
+    const newMe: any = {
+      id,
+      firstName: pendingAuth.firstName.trim(),
+      lastName: pendingAuth.lastName.trim(),
+      email: pendingAuth.email.trim(),
+      city: pendingAuth.city || city,
+      radiusKm: pendingAuth.radiusKm ?? radiusKm,
+      trust: 4.5,
+      trades: 0,
+      premium: false,
+      consent: { ...consents },
+    }
+    setMe(newMe)
+
+    const publicUser: any = { id, firstName: newMe.firstName, lastName: (newMe.lastName || '').slice(0,1)+'.', avatar: '🧑', city: newMe.city, trust: 4.5, trades: 0 }
+    setUsers(prev => {
+      const i = prev.findIndex(u => u.id === id)
+      if (i === -1) return [publicUser, ...prev]
+      const clone = [...prev]; clone[i] = { ...clone[i], ...publicUser }; return clone
+    })
+
+    localStorage.setItem('tiktroq.me', JSON.stringify(newMe))
+    setView('feed')
+  }
+
+  /* ========== Create handler ========== */
   const handleCreate = () => {
     const check = moderateText(`${createForm.title} ${createForm.description}`)
     const status = check.ok ? 'approved' : 'pending'
@@ -212,7 +321,7 @@ export default function TikTroQApp() {
     setView('feed')
   }
 
-  // TroQ Roulette functions
+  /* ========== TroQ Roulette ========== */
   const startTroqRoulette = () => {
     const availablePosts = posts.filter(p =>
       p.userId !== (me?.id || 'me') &&
@@ -271,31 +380,137 @@ export default function TikTroQApp() {
     setRoulettePost(null)
   }
 
-  // -------------------- VUES --------------------
+  /* ======================= VUES ======================= */
 
+  // Landing
   if (view === 'landing') {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
         <div className="w-full max-w-md text-center">
           <div className="text-5xl font-extrabold text-green-400 mb-2 select-none">TikTroQ</div>
-          <p className="text-gray-300 mb-6">{'Au lieu de jeter, en 2 clics tu troques !'}</p>
+          <p className="text-gray-300 mb-6">{SLOGAN}</p>
           <div className="grid grid-cols-2 gap-3 mb-6">
-            <button className="bg-green-500 text-black font-semibold py-3 rounded-xl" onClick={handleLogin}>
-              Voir la démo
+            <button className="bg-green-500 text-black font-semibold py-3 rounded-xl" onClick={() => setView('auth')}>
+              Créer un compte
             </button>
             <button className="bg-gray-800 text-white py-3 rounded-xl" onClick={handleLogin}>
               Se connecter
             </button>
           </div>
           <AdPlaceholder />
-          <div className="text-xs text-gray-500 mt-4">
-            En continuant, vous acceptez nos Conditions et notre Politique de confidentialité.
+          <div className="text-xs text-gray-500 mt-4 space-x-2">
+            <button className="underline" onClick={() => setView('terms')}>Conditions</button>
+            <span>·</span>
+            <button className="underline" onClick={() => setView('rules')}>Règlement</button>
+            <span>·</span>
+            <span>Confidentialité</span>
+          </div>
+        </div>
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
+      </div>
+    )
+  }
+
+  // Inscription (sans KYC upload)
+  if (view === 'auth') {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <div className="flex items-center mb-4">
+            <button className="mr-3" onClick={() => setView('landing')}><ArrowLeft /></button>
+            <div className="text-2xl font-bold text-green-400">Inscription</div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <input className="bg-gray-900 rounded-lg px-3 py-2" placeholder="Prénom"
+                     value={pendingAuth.firstName} onChange={e => setPendingAuth({ ...pendingAuth, firstName: e.target.value })} />
+              <input className="bg-gray-900 rounded-lg px-3 py-2" placeholder="Nom"
+                     value={pendingAuth.lastName} onChange={e => setPendingAuth({ ...pendingAuth, lastName: e.target.value })} />
+            </div>
+
+            <input className="bg-gray-900 rounded-lg px-3 py-2 w-full" placeholder="Email"
+                   value={pendingAuth.email} onChange={e => setPendingAuth({ ...pendingAuth, email: e.target.value })} />
+            <input className="bg-gray-900 rounded-lg px-3 py-2 w-full" type="password" placeholder="Mot de passe"
+                   value={pendingAuth.password} onChange={e => setPendingAuth({ ...pendingAuth, password: e.target.value })} />
+
+            <div className="grid grid-cols-2 gap-3 items-center">
+              <input className="bg-gray-900 rounded-lg px-3 py-2" placeholder="Ville"
+                     value={pendingAuth.city} onChange={e => setPendingAuth({ ...pendingAuth, city: e.target.value })} />
+              <div className="bg-gray-900 rounded-lg px-3 py-2">
+                <div className="text-xs text-gray-400">Rayon de recherche</div>
+                <input type="range" min={1} max={50} value={pendingAuth.radiusKm}
+                       onChange={e => setPendingAuth({ ...pendingAuth, radiusKm: Number(e.target.value) })} className="w-full" />
+                <div className="text-xs">{pendingAuth.radiusKm} km</div>
+              </div>
+            </div>
+
+            <div className="bg-black/40 border border-gray-800 rounded-lg p-3 space-y-2">
+              <div className="flex items-start space-x-2">
+                <input id="terms" type="checkbox" className="mt-1"
+                       checked={pendingAuth.acceptTerms}
+                       onChange={e => setPendingAuth({ ...pendingAuth, acceptTerms: e.target.checked })} />
+                <label htmlFor="terms" className="text-sm">
+                  J’ai lu et j’accepte le règlement, les Conditions et la Politique de confidentialité
+                </label>
+              </div>
+            </div>
+
+            <button onClick={handleSignup} className="w-full bg-green-500 text-black font-semibold py-3 rounded-xl">
+              Créer mon compte
+            </button>
           </div>
         </div>
       </div>
     )
   }
 
+  // Conditions
+  if (view === 'terms') {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <div className="p-4 flex items-center space-x-3 border-b border-gray-800">
+          <button onClick={() => setView('landing')}><ArrowLeft /></button>
+          <div className="text-lg font-semibold">Conditions d’utilisation</div>
+        </div>
+        <div className="p-4 space-y-4 max-w-md mx-auto text-sm leading-6 text-gray-200">
+          <p><strong>TikTroQ</strong> est une plateforme de mise en relation pour trocs, objets et services. L’application n’est pas partie aux échanges entre utilisateurs.</p>
+          <p>En utilisant TikTroQ, vous vous engagez à publier des contenus licites, à décrire honnêtement les objets et à respecter les lois en vigueur. Les objets prohibés, contrefaçons, drogues et contenus haineux sont interdits.</p>
+          <p>Les échanges se font sous votre responsabilité, y compris la qualité, la conformité, les vols et la sécurité lors des rencontres. Protégez vos données personnelles et préférez des lieux publics.</p>
+          <p>La modération est assistée par IA, avec revue manuelle possible. TikTroQ peut retirer tout contenu non conforme.</p>
+          <div className="pt-2">
+            <button className="bg-green-500 text-black font-semibold px-4 py-2 rounded-lg" onClick={() => setView('landing')}>J’ai lu</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Règlement
+  if (view === 'rules') {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <div className="p-4 flex items-center space-x-3 border-b border-gray-800">
+          <button onClick={() => setView('landing')}><ArrowLeft /></button>
+          <div className="text-lg font-semibold">Règlement de la communauté</div>
+        </div>
+        <div className="p-4 space-y-4 max-w-md mx-auto text-sm leading-6 text-gray-200">
+          <ul className="list-disc pl-5 space-y-2">
+            <li>Respect, politesse, zéro harcèlement.</li>
+            <li>Pas d’objets ou services illégaux, pas de contrefaçons.</li>
+            <li>Décrivez honnêtement l’état, la valeur et la disponibilité.</li>
+            <li>Protégez vos infos sensibles, organisez les rencontres en lieux publics.</li>
+            <li>Signalez les abus, fraude, contenus suspects.</li>
+          </ul>
+          <div className="pt-2">
+            <button className="bg-green-500 text-black font-semibold px-4 py-2 rounded-lg" onClick={() => setView('landing')}>Compris</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Settings
   if (view === 'settings') {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -341,14 +556,20 @@ export default function TikTroQApp() {
             <div className="text-xs text-gray-400">
               TikTroQ est une plateforme de mise en relation, les échanges et litiges relèvent des utilisateurs.
             </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button onClick={() => setView('terms')} className="text-xs underline text-gray-300">Lire les Conditions</button>
+              <button onClick={() => setView('rules')} className="text-xs underline text-gray-300">Lire le Règlement</button>
+            </div>
           </div>
 
           <button onClick={() => setView('feed')} className="w-full bg-green-500 text-black font-semibold py-3 rounded-xl">Retour</button>
         </div>
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
 
+  // Feed
   if (view === 'feed') {
     const p = currentPost
     const u = p ? userMap[p.userId] : null
@@ -369,6 +590,7 @@ export default function TikTroQApp() {
             <div className="bg-black/50 rounded-full p-4"><Video size={48} /></div>
           </div>
         </div>
+
         {p && (
           <div className="absolute bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent">
             <div className="flex justify-between items-end">
@@ -392,6 +614,7 @@ export default function TikTroQApp() {
                   <span className="bg-green-400 text-black px-2 py-1 rounded text-xs font-bold">{formatEuros(p.estimatedValue)}</span>
                 </div>
               </div>
+
               <div className="flex flex-col space-y-4 items-center">
                 <div className="flex flex-col items-center">
                   <button className="p-3 rounded-full bg-black/50" onClick={() => setPosts((prev) => prev.map((x) => x.id === p.id ? { ...x, liked: !x.liked, likes: x.liked ? x.likes - 1 : x.likes + 1 } : x))}>
@@ -470,13 +693,55 @@ export default function TikTroQApp() {
                 </div>
               </div>
             )}
+
+            {/* Overlay commentaires */}
+            {showComments && (
+              <div className="absolute inset-0 z-50 bg-black/90">
+                <div className="p-4 flex items-center justify-between border-b border-gray-800">
+                  <button onClick={() => setShowComments(false)}><ArrowLeft size={22} /></button>
+                  <div className="font-semibold">Commentaires</div>
+                  <div />
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto h-[60vh]">
+                  {[
+                    { id: 'c1', user: 'Alex 92', avatar: '👨', text: 'Intéressé, j’ai une PS5 Digital et 3 jeux.', at: '1h' },
+                    { id: 'c2', user: 'Thomas K.', avatar: '👨‍💼', text: 'Sous garantie encore ?', at: '2h' },
+                    { id: 'c3', user: 'Marie L.', avatar: '👩‍🦱', text: 'MP moi, j’ai ce qu’il faut.', at: '3h' },
+                  ].map(c => (
+                    <div key={c.id} className="flex space-x-3">
+                      <div className="text-2xl">{c.avatar}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-semibold text-sm">{c.user}</span>
+                          <span className="text-gray-400 text-xs">{c.at}</span>
+                        </div>
+                        <p className="text-sm mt-1">{c.text}</p>
+                        <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
+                          <button>Répondre</button>
+                          <button className="text-red-400">Signaler</button>
+                          <button className="text-green-400 font-semibold" onClick={() => { setShowComments(false); setShowChatWith(currentPost?.userId || null); setView('chat'); }}>Proposer un troc</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 border-t border-gray-800">
+                  <div className="flex items-center space-x-2">
+                    <input className="flex-1 bg-gray-800 rounded-full px-4 py-2 text-sm" placeholder="Ajouter un commentaire..." />
+                    <button className="bg-green-500 rounded-full px-3 py-2 text-black font-semibold text-sm">Publier</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         <BottomNav current={view} setCurrent={setView} onCreate={() => setView('create')} />
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
 
+  // Explore / Search
   if (view === 'search' || view === 'explore') {
     return (
       <div className="max-w-md mx-auto bg-black text-white h-screen">
@@ -494,7 +759,7 @@ export default function TikTroQApp() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-1 p-1">
-          {filteredPosts.map((post, idx) => (
+          {filteredPosts.map((post) => (
             <div key={post.id} className="relative aspect-[3/4] bg-gray-800 rounded-lg overflow-hidden cursor-pointer" onClick={() => { setView('feed'); }}>
               <img src={post.mediaPoster} alt={post.title} className="w-full h-full object-cover" />
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
@@ -507,10 +772,12 @@ export default function TikTroQApp() {
             </div>
           ))}
         </div>
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
 
+  // Create
   if (view === 'create') {
     return (
       <div className="max-w-md mx-auto bg-black text-white h-screen">
@@ -552,10 +819,12 @@ export default function TikTroQApp() {
             {(() => { const check = moderateText(`${createForm.title} ${createForm.description}`); return check.ok ? (<div className="text-xs text-green-400 flex items-center space-x-2"><Check size={14} /><span>Contenu conforme</span></div>) : (<div className="text-xs text-yellow-400 flex items-center space-x-2"><Shield size={14} /><span>{check.reason}. Votre annonce sera vérifiée avant publication.</span></div>); })()}
           </div>
         </div>
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
 
+  // Messages
   if (view === 'messages') {
     return (
       <div className="max-w-md mx-auto bg-black text-white h-screen">
@@ -582,10 +851,12 @@ export default function TikTroQApp() {
           })}
         </div>
         <BottomNav current={view} setCurrent={setView} onCreate={() => setView('create')} />
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
 
+  // Chat
   if (view === 'chat') {
     const conv = conversations[0]
     const withUser = users.find((u) => u.id === (showChatWith || conv.withUserId)) || users[0]
@@ -631,6 +902,7 @@ export default function TikTroQApp() {
     )
   }
 
+  // Profile
   if (view === 'profile') {
     const my = meUser || { firstName: 'Invité', lastName: '', trust: 4.2, trades: 0, city }
     const myPosts = posts.filter((p) => p.userId === (meUser?.id || 'u1'))
@@ -655,10 +927,35 @@ export default function TikTroQApp() {
             </div>
             {(my as any).premium && <div className="ml-auto"><Crown className="text-yellow-400" /></div>}
           </div>
+
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-black/40 border border-gray-800 rounded-xl p-3 text-center"><div className="text-2xl font-bold">{my.trades}</div><div className="text-xs text-gray-400">Trocs</div></div>
             <div className="bg-black/40 border border-gray-800 rounded-xl p-3 text-center"><div className="text-2xl font-bold">{Math.round(my.trust * 20)}%</div><div className="text-xs text-gray-400">Confiance</div></div>
             <div className="bg-black/40 border border-gray-800 rounded-xl p-3 text-center"><div className="text-2xl font-bold">{myPosts.length}</div><div className="text-xs text-gray-400">Annonces</div></div>
+          </div>
+
+          {/* KYC flag */}
+          <div className="bg-black/40 border border-gray-800 rounded-xl p-4">
+            <div className="text-sm font-semibold mb-2">Statut identité (KYC)</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs">
+                Statut :
+                {kycStatus === 'verified' ? (
+                  <span className="ml-1 text-green-400 font-semibold">Vérifié</span>
+                ) : kycStatus === 'pending' ? (
+                  <span className="ml-1 text-yellow-400 font-semibold">En attente</span>
+                ) : (
+                  <span className="ml-1 text-gray-300">Non vérifié</span>
+                )}
+              </div>
+              <div className="space-x-2">
+                {kycStatus !== 'verified' && (
+                  <button onClick={markKycVerified} className="bg-green-500 text-black px-3 py-1 rounded-lg text-xs font-semibold">
+                    Marquer vérifié (démo)
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Badge Roulette */}
@@ -675,6 +972,7 @@ export default function TikTroQApp() {
           </div>
         </div>
         <BottomNav current={view} setCurrent={setView} onCreate={() => setView('create')} />
+        <GdprBanner show={!gdprAccepted} onAccept={() => setGdprAccepted(true)} consents={consents} setConsents={setConsents} />
       </div>
     )
   }
