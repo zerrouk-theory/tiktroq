@@ -1,10 +1,3 @@
-a) package.json
-
-GitHub → Add file → Create new file
-
-Name: package.json
-
-Colle le contenu suivant puis Commit changes.
 
 {
   "name": "tiktroq",
